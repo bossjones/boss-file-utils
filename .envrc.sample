@@ -1,0 +1,15 @@
+
+# Required
+export OTEL_SERVICE_NAME=boss-file-utils
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318  # HTTP endpoint
+
+  # Enable all signals
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+
+# Optional but recommended
+export OTEL_EXPORTER_OTLP_PROTOCOL='http/protobuf'
+export OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo
+export OTEL_PYTHON_LOG_CORRELATION=true
+export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(detect-secrets scan:*)",
+      "Bash(docker info:*)",
+      "Bash(find:*)",
+      "Bash(gh label create:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh release list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git merge-base:*)",
+      "Bash(git mv:*)",
+      "Bash(git remote get-url:*)",
+      "Bash(git tag:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(uv run rumdl fmt:*)",
+      "Skill(superpowers:brainstorming)",
+      "Skill(superpowers:writing-plans)",
+      "WebFetch(domain:docs.claude.ai)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:ghcr.io)",
+      "WebFetch(domain:git.corp.adobe.com/raw)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch"
+    ]
+  },
+  "enabledPlugins": {
+    "meta-claude@lunar-claude": true,
+    "python-tools@lunar-claude": true,
+    "git-workflow@lunar-claude": true,
+    "hookify@lunar-claude": true,
+    "documentation-generation@claude-code-workflows": true,
+    "observability-monitoring@claude-code-workflows": true,
+    "docker-master@claude-plugin-marketplace": true
+  }
+}
