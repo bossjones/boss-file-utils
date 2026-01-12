@@ -28,7 +28,12 @@ from sqlite_utils.db import Table
 T = TypeVar("T")
 
 from boss_file_utils.logging_config import configure_logging, get_logger, stop_queue_listener
-from boss_file_utils.telemetry import get_tracer, record_exception_on_span, setup_telemetry
+from boss_file_utils.telemetry import (
+    get_tracer,
+    instrument_all,
+    record_exception_on_span,
+    setup_telemetry,
+)
 
 
 @dataclass
@@ -399,8 +404,9 @@ async def main() -> None:
     """Main entry point."""
     args = parse_args()
 
-    # Initialize telemetry and logging
+    # Initialize telemetry, instrumentation, and logging
     setup_telemetry(service_name="boss-file-utils")
+    instrument_all()
     configure_logging(json_output=args.json, log_level=args.log_level)
 
     log = get_logger(__name__)
