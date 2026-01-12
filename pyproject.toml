@@ -1,0 +1,295 @@
+# ---- Project Info and Dependencies ----
+
+[project.urls]
+Repository = "https://github.com/bossjones/boss-file-utils"
+# Homepage = "https://..."
+# Documentation = "https://..."
+
+[project]
+name = "boss-file-utils"
+description = "lab to play with new 3rd party logging modules in python"
+authors = [
+    { name="Malcolm Jones", email="bossjones@theblacktonystark.com" },
+]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<4.0"
+dynamic = ["version"]
+
+# https://pypi.org/classifiers/
+# Adjust as needed:
+classifiers = [
+    # Adjust as needed:
+    "Development Status :: 4 - Beta",
+    # "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    # Include this to avoid accidentally publishing to PyPI:
+    # "Private :: Do Not Upload",
+]
+
+
+# ---- Main dependencies ----
+
+dependencies = [
+    "asgi-correlation-id>=4.3.4",
+    "httpx>=0.28.0",
+    "opentelemetry-api>=1.29.0",
+    "opentelemetry-distro>=0.60b1",
+    "opentelemetry-exporter-otlp>=1.39.1",
+    "opentelemetry-instrumentation-asgi>=0.60b1",
+    "opentelemetry-instrumentation-asyncio>=0.60b1",
+    "opentelemetry-instrumentation-click>=0.60b1",
+    "opentelemetry-instrumentation-dbapi>=0.60b1",
+    "opentelemetry-instrumentation-grpc>=0.60b1",
+    "opentelemetry-instrumentation-httpx>=0.50b0",
+    "opentelemetry-instrumentation-jinja2>=0.60b1",
+    "opentelemetry-instrumentation-logging>=0.60b1",
+    "opentelemetry-instrumentation-requests>=0.60b1",
+    "opentelemetry-instrumentation-sqlite3>=0.60b1",
+    "opentelemetry-instrumentation-system-metrics>=0.60b1",
+    "opentelemetry-instrumentation-threading>=0.60b1",
+    "opentelemetry-instrumentation-urllib>=0.60b1",
+    "opentelemetry-instrumentation-urllib3>=0.60b1",
+    "opentelemetry-instrumentation-wsgi>=0.60b1",
+    "opentelemetry-sdk>=1.29.0",
+    "orjson>=3.11.5",
+    "pydantic-extra-types>=2.10.6",
+    "pydantic-settings>=2.12.0",
+    "sqlite-utils>=3.39",
+    "structlog>=25.5.0",
+]
+
+
+# ---- Dev dependencies ----
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-sugar>=1.0.0",
+    "ruff>=0.11.9",
+    "codespell>=2.4.1",
+    "rich>=14.0.0",
+    "basedpyright>=1.29.1",
+    "funlog>=0.2.1",
+    "pytest-mock>=3.15.1",
+    "pytest-recording>=0.13.4",
+    "pytest-retry>=1.7.0",
+    "pytest-skip-slow>=0.0.5",
+    "pytest-skipuntil>=0.2.0",
+    "pytest-subprocess>=1.5.3",
+    "pytest-timeout>=2.4.0",
+    "pytest-cov>=7.0.0",
+    "monkeytype>=23.3.0",
+    "ty>=0.0.7",
+    "locust>=2.36.0",
+]
+
+[project.scripts]
+# Add script entry points here:
+boss-file-utils = "boss_file_utils:main"
+
+
+# ---- Build system ----
+
+# Dynamic versioning from:
+# https://github.com/ninoseki/uv-dynamic-versioning/
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+# Note JSON schemas don't seem to be right for tool.hatch.version.source so
+# this may cause false warnings in IDEs.
+# https://github.com/ninoseki/uv-dynamic-versioning/issues/21
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+
+[tool.hatch.build.targets.wheel]
+# The source location for the package.
+packages = ["src/boss_file_utils"]
+
+
+# ---- Settings ----
+
+[tool.ruff]
+# Set as desired, typically 88 (black standard) or 100 (wide).
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    # See: https://docs.astral.sh/ruff/rules/
+    # Basic list from: https://docs.astral.sh/ruff/linter/#rule-selection
+    "E", # https://docs.astral.sh/ruff/rules/#error-e
+    "F", # https://docs.astral.sh/ruff/rules/#pyflakes-f
+    "UP", # https://docs.astral.sh/ruff/rules/#pyupgrade-up
+    "B", # https://docs.astral.sh/ruff/rules/#flake8-bugbear-b
+    "I", # https://docs.astral.sh/ruff/rules/#isort-i
+    # Other possibilities:
+    # "D" # https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    # "Q" # https://docs.astral.sh/ruff/rules/#flake8-quotes-q
+    # "COM" # https://docs.astral.sh/ruff/rules/#flake8-commas-com
+    # "SIM", # https://docs.astral.sh/ruff/rules/#flake8-simplify-sim
+
+]
+ignore = [
+    # Disable some rules that are overly pedantic. Add/remove as desired:
+    "E501", # https://docs.astral.sh/ruff/rules/line-too-long/
+    "E402", # https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file/
+    "E731", # https://docs.astral.sh/ruff/rules/lambda-assignment/
+    # We use both ruff formatter and linter so some rules should always be disabled.
+    # See: https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "W191", # https://docs.astral.sh/ruff/rules/tab-indentation/
+    "E111", # https://docs.astral.sh/ruff/rules/indentation-with-invalid-multiple/
+    "E114", # https://docs.astral.sh/ruff/rules/indentation-with-invalid-multiple-comment/
+    "E117", # https://docs.astral.sh/ruff/rules/over-indented/
+    "D206", # https://docs.astral.sh/ruff/rules/docstring-tab-indentation/
+    "D300", # https://docs.astral.sh/ruff/rules/triple-single-quotes/
+    "Q000", # https://docs.astral.sh/ruff/rules/bad-quotes-inline-string/
+    "Q001", # https://docs.astral.sh/ruff/rules/bad-quotes-multiline-string/
+    "Q002", # https://docs.astral.sh/ruff/rules/bad-quotes-docstring/
+    "Q003", # https://docs.astral.sh/ruff/rules/avoidable-escaped-quote/
+    "COM812", # https://docs.astral.sh/ruff/rules/missing-trailing-comma/
+    "COM819", # https://docs.astral.sh/ruff/rules/prohibited-trailing-comma/
+    "ISC002", # https://docs.astral.sh/ruff/rules/multi-line-implicit-string-concatenation/
+]
+
+[tool.basedpyright]
+typeCheckingMode = "recommended"
+failOnWarnings = false
+allowedUntypedLibraries = ["ultralytics", "wandb", "matplotlib", "seaborn", "pyyaml", "opencv-python", "cv2", "numpy"]
+# BasedPyright currently seems like the best type checker option, much faster
+# than mypy and with a good extension for VSCode/Cursor.
+# https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright
+# https://docs.basedpyright.com/latest/configuration/config-files/#sample-pyprojecttoml-file
+include = ["src", "tests", "devtools"]
+# By default BasedPyright is very strict, so you almost certainly want to disable
+# some of the rules.
+# First, these turn off warnings about (yes) how you ignore warnings:
+reportIgnoreCommentWithoutRule = false
+reportUnnecessaryTypeIgnoreComment = false
+# A few typically noisy warnings are next.
+# How many you enable is up to you. The first few are off by default, but you can
+# comment/uncomment these as desired:
+reportMissingTypeStubs = false
+reportUnusedCallResult = false
+reportAny = false
+reportExplicitAny = false
+reportImplicitStringConcatenation = false
+reportUnreachable = false
+reportUnannotatedClassAttribute = false
+# reportPrivateImportUsage = false
+# reportPrivateLocalImportUsage = false
+# reportMissingImports = false
+# reportUnnecessaryIsInstance = false
+reportUnknownVariableType = false
+# reportUnknownArgumentType = false
+
+[tool.codespell]
+# Add here as needed:
+# ignore-words-list = "foo,bar"
+# skip = "foo.py,bar.py"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov-branch",
+    "--cov-report=annotate:cov_annotate",
+    "--cov-report=html:htmlcov",
+    "--cov-report=term-missing",
+    "--cov-report=xml:cov.xml",
+    "--cov=src",
+    "--durations-min=0.05",
+    "--durations=10",
+    "--junitxml=junit/test-results.xml",
+    "--timeout=30",
+    "--timeout_method=thread",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:.venv.*:",
+    "ignore::ResourceWarning:asyncio",
+]
+markers = [
+    "e2e: marks tests dealing with e2e testing (deselect with '-m \"not e2e\"')",
+    "fast: marks tests as fast (run with '-m fast')",
+    "integration: marks tests dealing with integration testing (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (run with '-m slow')",
+    "unittest: marks tests dealing with unittest (deselect with '-m \"not unittest\"')",
+]
+python_classes = ["Test*"]
+python_files = ["*.py"]
+python_functions = ["test_*"]
+pythonpath = "."
+testpaths = ["src", "tests"]
+timeout = 30
+timeout_method = "thread"
+
+# ===========================[ COVERAGE CONFIGURATION ]========================
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.paths]
+source = ["src/"]
+
+[tool.coverage.report]
+exclude_also = [
+    "@(abc\\.)?abstractmethod",
+    "\\A(?s:.*# pragma: exclude file.*)\\Z",
+    "def __repr__",
+    "except ValueError:\\n\\s*assume\\(False\\)",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if self\\.debug",
+    "no cover: start(?s:.)*?no cover: stop",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+exclude_lines = [
+    "@(abc.)?abstractmethod",
+    "@overload",
+    "@typing.overload",
+    "assert_never",
+    "def __repr__",
+    "def __str__",
+    "except ImportError:",
+    "if TYPE_CHECKING",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "if self.debug",
+    "if settings.DEBUG",
+    "if typing.TYPE_CHECKING:",
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "typing.assert_never",
+    '\\(Protocol\\):',
+    '\\s*\\.\\.\\.',
+]
+ignore_errors = false
+omit = ["*/test/*", "*/tests/*"]
+show_missing = true
+skip_covered = false
+skip_empty = true
+
+[tool.coverage.run]
+branch = true
+concurrency = ["multiprocessing", "thread"]
+data_file = ".coverage"
+parallel = true
+relative_files = true
+source = ["src"]
+
+[tool.coverage.xml]
+output = "cov.xml"
