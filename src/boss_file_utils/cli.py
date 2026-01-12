@@ -5,26 +5,36 @@ Scans a directory to a specified depth and stores file metadata in a SQLite data
 using sqlite-utils. Uses asyncio for maximum parallel I/O operations.
 
 Usage:
-    python dir_scanner.py /path/to/scan --depth 3 --db myfiles.db --workers 50
+    boss-file-utils /path/to/scan --depth 3 --db myfiles.db --workers 50
 """
+
+from __future__ import annotations
 
 import argparse
 import asyncio
 import os
 import sys
 import time
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, TypeVar
 
 import sqlite_utils
+from sqlite_utils.db import Table
+
+T = TypeVar("T")
+
+from boss_file_utils.logging_config import configure_logging, get_logger, stop_queue_listener
+from boss_file_utils.telemetry import get_tracer, record_exception_on_span, setup_telemetry
 
 
 @dataclass
 class FileMetadata:
     """Represents metadata for a single file."""
+
     name: str
     path: str
     parent_directory: str
@@ -48,7 +58,7 @@ class AsyncDirectoryScanner:
     def __init__(
         self,
         root_path: str,
-        max_depth: int,
+        max_depth: int | float,
         db_path: str = "file_index.db",
         max_workers: int = 50,
         batch_size: int = 500,
@@ -61,13 +71,14 @@ class AsyncDirectoryScanner:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._semaphore = asyncio.Semaphore(max_workers)
         self._stats = {"files": 0, "directories": 0, "errors": 0, "symlinks": 0}
+        self._log = get_logger(__name__)
 
-    async def _run_in_executor(self, func, *args):
+    async def _run_in_executor(self, func: Callable[..., T], *args: Any) -> T:
         """Run a blocking function in the thread pool executor."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, func, *args)
 
-    def _get_entry_metadata(self, entry: os.DirEntry, depth: int) -> FileMetadata | None:
+    def _get_entry_metadata(self, entry: os.DirEntry[str], depth: int) -> FileMetadata | None:
         """
         Extract metadata from a directory entry.
         Returns None if the entry cannot be accessed.
@@ -84,57 +95,64 @@ class AsyncDirectoryScanner:
                 size_bytes=stat_info.st_size,
                 modified_timestamp=stat_info.st_mtime,
                 modified_datetime=datetime.fromtimestamp(stat_info.st_mtime).isoformat(),
-                created_timestamp=getattr(stat_info, 'st_birthtime', stat_info.st_ctime),
+                created_timestamp=getattr(stat_info, "st_birthtime", stat_info.st_ctime),
                 created_datetime=datetime.fromtimestamp(
-                    getattr(stat_info, 'st_birthtime', stat_info.st_ctime)
+                    getattr(stat_info, "st_birthtime", stat_info.st_ctime)
                 ).isoformat(),
                 is_directory=entry.is_dir(follow_symlinks=False),
                 is_symlink=entry.is_symlink(),
                 depth=depth,
             )
         except (OSError, PermissionError) as e:
-            print(f"Warning: Cannot access {entry.path}: {e}", file=sys.stderr)
+            self._log.warning("Cannot access path", path=entry.path, error=str(e))
             return None
 
-    def _scan_directory_sync(self, dir_path: Path) -> list[os.DirEntry]:
+    def _scan_directory_sync(self, dir_path: Path) -> list[os.DirEntry[str]]:
         """Synchronously scan a directory and return entries."""
         try:
             with os.scandir(dir_path) as entries:
                 return list(entries)
         except (OSError, PermissionError) as e:
-            print(f"Warning: Cannot scan {dir_path}: {e}", file=sys.stderr)
+            self._log.warning("Cannot scan directory", dir_path=str(dir_path), error=str(e))
             return []
 
-    async def _scan_directory(self, dir_path: Path) -> list[os.DirEntry]:
+    async def _scan_directory(self, dir_path: Path) -> list[os.DirEntry[str]]:
         """Asynchronously scan a directory using the thread pool."""
         async with self._semaphore:
             return await self._run_in_executor(self._scan_directory_sync, dir_path)
 
     async def _collect_metadata_batch(
-        self, entries: list[os.DirEntry], depth: int
+        self, entries: list[os.DirEntry[str]], depth: int
     ) -> list[FileMetadata]:
         """Collect metadata for a batch of entries asynchronously."""
-        tasks = []
-        for entry in entries:
-            task = self._run_in_executor(self._get_entry_metadata, entry, depth)
-            tasks.append(task)
+        tracer = get_tracer()
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        with tracer.start_as_current_span("collect_metadata_batch") as span:
+            span.set_attribute("batch.size", len(entries))
+            span.set_attribute("batch.depth", depth)
 
-        metadata_list = []
-        for result in results:
-            if isinstance(result, Exception):
-                self._stats["errors"] += 1
-            elif result is not None:
-                metadata_list.append(result)
-                if result.is_directory:
-                    self._stats["directories"] += 1
-                if result.is_symlink:
-                    self._stats["symlinks"] += 1
-                if not result.is_directory:
-                    self._stats["files"] += 1
+            tasks = []
+            for entry in entries:
+                task = self._run_in_executor(self._get_entry_metadata, entry, depth)
+                tasks.append(task)
 
-        return metadata_list
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            metadata_list: list[FileMetadata] = []
+            for result in results:
+                if isinstance(result, BaseException):
+                    self._stats["errors"] += 1
+                elif isinstance(result, FileMetadata):
+                    metadata_list.append(result)
+                    if result.is_directory:
+                        self._stats["directories"] += 1
+                    if result.is_symlink:
+                        self._stats["symlinks"] += 1
+                    if not result.is_directory:
+                        self._stats["files"] += 1
+
+            span.set_attribute("batch.collected", len(metadata_list))
+            return metadata_list
 
     async def scan(self) -> AsyncIterator[list[FileMetadata]]:
         """
@@ -168,7 +186,7 @@ class AsyncDirectoryScanner:
             scan_results = await asyncio.gather(*scan_tasks)
 
             # Process entries for each directory
-            for (dir_path, depth), entries in zip(current_level, scan_results):
+            for (_dir_path, depth), entries in zip(current_level, scan_results, strict=True):
                 if not entries:
                     continue
 
@@ -194,9 +212,9 @@ class AsyncDirectoryScanner:
         if pending_batch:
             yield pending_batch
 
-    def _setup_database(self, db: sqlite_utils.Database):
+    def _setup_database(self, db: sqlite_utils.Database) -> Table:
         """Set up the database table with proper schema and indexes."""
-        table = db.table("files")
+        table: Table = db.table("files")  # pyright: ignore[reportAssignmentType]
 
         # Create table if it doesn't exist
         if "files" not in db.table_names():
@@ -229,65 +247,75 @@ class AsyncDirectoryScanner:
 
         return table
 
-    async def run(self) -> dict:
+    async def run(self) -> dict[str, Any]:
         """
         Run the scanner and store results in the database.
         Returns statistics about the scan.
         """
-        start_time = time.time()
+        tracer = get_tracer()
 
-        # Create/open database
-        db = sqlite_utils.Database(self.db_path)
-        table = self._setup_database(db)
+        with tracer.start_as_current_span("directory_scan") as span:
+            span.set_attribute("scan.root_path", str(self.root_path))
+            span.set_attribute("scan.max_depth", self.max_depth)
+            span.set_attribute("scan.db_path", self.db_path)
 
-        total_inserted = 0
+            start_time = time.time()
 
-        try:
-            async for batch in self.scan():
-                # Convert dataclass instances to dicts for insertion
-                records = [
-                    {
-                        "name": m.name,
-                        "path": m.path,
-                        "parent_directory": m.parent_directory,
-                        "extension": m.extension,
-                        "size_bytes": m.size_bytes,
-                        "modified_timestamp": m.modified_timestamp,
-                        "modified_datetime": m.modified_datetime,
-                        "created_timestamp": m.created_timestamp,
-                        "created_datetime": m.created_datetime,
-                        "is_directory": m.is_directory,
-                        "is_symlink": m.is_symlink,
-                        "depth": m.depth,
-                    }
-                    for m in batch
-                ]
+            # Create/open database
+            db = sqlite_utils.Database(self.db_path)
+            table = self._setup_database(db)
 
-                # Use insert_all with replace for handling re-scanning
-                table.insert_all(records, alter=True, replace=True)
-                total_inserted += len(records)
+            total_inserted = 0
 
-                print(f"\rProcessed: {total_inserted} items...", end="", flush=True)
+            try:
+                async for batch in self.scan():
+                    # Convert dataclass instances to dicts for insertion
+                    records = [
+                        {
+                            "name": m.name,
+                            "path": m.path,
+                            "parent_directory": m.parent_directory,
+                            "extension": m.extension,
+                            "size_bytes": m.size_bytes,
+                            "modified_timestamp": m.modified_timestamp,
+                            "modified_datetime": m.modified_datetime,
+                            "created_timestamp": m.created_timestamp,
+                            "created_datetime": m.created_datetime,
+                            "is_directory": m.is_directory,
+                            "is_symlink": m.is_symlink,
+                            "depth": m.depth,
+                        }
+                        for m in batch
+                    ]
 
-        finally:
-            self._executor.shutdown(wait=False)
+                    # Use insert_all with replace for handling re-scanning
+                    with tracer.start_as_current_span("database_insert") as insert_span:
+                        insert_span.set_attribute("insert.count", len(records))
+                        table.insert_all(records, alter=True, replace=True)  # pyright: ignore[reportArgumentType]
+                    total_inserted += len(records)
 
-        print()  # New line after progress
+                    self._log.debug("Batch inserted", total=total_inserted, batch_size=len(records))
 
-        elapsed = time.time() - start_time
+            finally:
+                self._executor.shutdown(wait=False)
 
-        return {
-            "root_path": str(self.root_path),
-            "database": self.db_path,
-            "max_depth": self.max_depth,
-            "total_items": total_inserted,
-            "files": self._stats["files"],
-            "directories": self._stats["directories"],
-            "symlinks": self._stats["symlinks"],
-            "errors": self._stats["errors"],
-            "elapsed_seconds": round(elapsed, 2),
-            "items_per_second": round(total_inserted / elapsed, 2) if elapsed > 0 else 0,
-        }
+            elapsed = time.time() - start_time
+
+            span.set_attribute("scan.total_items", total_inserted)
+            span.set_attribute("scan.elapsed_seconds", round(elapsed, 2))
+
+            return {
+                "root_path": str(self.root_path),
+                "database": self.db_path,
+                "max_depth": self.max_depth,
+                "total_items": total_inserted,
+                "files": self._stats["files"],
+                "directories": self._stats["directories"],
+                "symlinks": self._stats["symlinks"],
+                "errors": self._stats["errors"],
+                "elapsed_seconds": round(elapsed, 2),
+                "items_per_second": round(total_inserted / elapsed, 2) if elapsed > 0 else 0,
+            }
 
 
 def parse_args() -> argparse.Namespace:
@@ -320,7 +348,8 @@ After scanning, query with sqlite-utils CLI:
     )
 
     parser.add_argument(
-        "-d", "--depth",
+        "-d",
+        "--depth",
         type=int,
         default=3,
         help="Maximum depth to scan (default: 3, use -1 for unlimited)",
@@ -334,34 +363,50 @@ After scanning, query with sqlite-utils CLI:
     )
 
     parser.add_argument(
-        "-w", "--workers",
+        "-w",
+        "--workers",
         type=int,
         default=50,
         help="Maximum concurrent workers (default: 50)",
     )
 
     parser.add_argument(
-        "-b", "--batch-size",
+        "-b",
+        "--batch-size",
         type=int,
         default=500,
         help="Batch size for database inserts (default: 500)",
     )
 
     parser.add_argument(
-        "-q", "--quiet",
+        "--json",
         action="store_true",
-        help="Suppress progress output",
+        help="Output logs in JSON format (for production)",
+    )
+
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Logging verbosity level (default: INFO)",
     )
 
     return parser.parse_args()
 
 
-async def main():
+async def main() -> None:
     """Main entry point."""
     args = parse_args()
 
+    # Initialize telemetry and logging
+    setup_telemetry(service_name="boss-file-utils")
+    configure_logging(json_output=args.json, log_level=args.log_level)
+
+    log = get_logger(__name__)
+
     # Handle unlimited depth
-    max_depth = args.depth if args.depth >= 0 else float('inf')
+    max_depth = args.depth if args.depth >= 0 else float("inf")
 
     scanner = AsyncDirectoryScanner(
         root_path=args.directory,
@@ -371,42 +416,42 @@ async def main():
         batch_size=args.batch_size,
     )
 
-    if not args.quiet:
-        print(f"Scanning: {args.directory}")
-        print(f"Max depth: {args.depth if args.depth >= 0 else 'unlimited'}")
-        print(f"Database: {args.db}")
-        print(f"Workers: {args.workers}")
-        print("-" * 40)
+    log.info(
+        "Starting scan",
+        directory=args.directory,
+        max_depth=args.depth if args.depth >= 0 else "unlimited",
+        db=args.db,
+        workers=args.workers,
+    )
 
     try:
         stats = await scanner.run()
 
-        if not args.quiet:
-            print("-" * 40)
-            print("Scan Complete!")
-            print(f"  Total items:    {stats['total_items']:,}")
-            print(f"  Files:          {stats['files']:,}")
-            print(f"  Directories:    {stats['directories']:,}")
-            print(f"  Symlinks:       {stats['symlinks']:,}")
-            print(f"  Errors:         {stats['errors']:,}")
-            print(f"  Time:           {stats['elapsed_seconds']}s")
-            print(f"  Speed:          {stats['items_per_second']:,.0f} items/sec")
-            print(f"  Database:       {stats['database']}")
-            print()
-            print("Query examples with sqlite-utils CLI:")
-            print(f"  sqlite-utils tables {args.db}")
-            print(f"  sqlite-utils rows {args.db} files --limit 10")
-            print(f'  sqlite-utils "{args.db}" "SELECT extension, COUNT(*) as count FROM files WHERE extension != \'\' GROUP BY extension ORDER BY count DESC LIMIT 10"')
+        log.info(
+            "Scan complete",
+            total_items=stats["total_items"],
+            files=stats["files"],
+            directories=stats["directories"],
+            symlinks=stats["symlinks"],
+            errors=stats["errors"],
+            elapsed_seconds=stats["elapsed_seconds"],
+            items_per_second=stats["items_per_second"],
+            database=stats["database"],
+        )
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        record_exception_on_span(e)
+        log.error("Scan failed", error=str(e))
         sys.exit(1)
     except NotADirectoryError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        record_exception_on_span(e)
+        log.error("Scan failed", error=str(e))
         sys.exit(1)
     except KeyboardInterrupt:
-        print("\nScan interrupted by user", file=sys.stderr)
+        log.warning("Scan interrupted by user")
         sys.exit(130)
+    finally:
+        stop_queue_listener()
 
 
 if __name__ == "__main__":
