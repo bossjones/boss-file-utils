@@ -68,7 +68,7 @@ class AsyncDirectoryScanner:
         max_workers: int = 50,
         batch_size: int = 500,
     ):
-        self.root_path = Path(root_path).resolve()
+        self.root_path = Path(root_path).expanduser().resolve()
         self.max_depth = max_depth
         self.db_path = db_path
         self.max_workers = max_workers

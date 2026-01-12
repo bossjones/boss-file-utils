@@ -183,6 +183,17 @@ class TestAsyncDirectoryScannerInit:
 
         assert scanner.root_path.is_absolute()
 
+    def test_init_expands_tilde_path(self) -> None:
+        """Scanner expands tilde paths to user home directory."""
+        tilde_path = "~/test_dir"
+        scanner = AsyncDirectoryScanner(tilde_path, max_depth=1)
+
+        # Should expand to home directory
+        expected = Path.home() / "test_dir"
+        assert scanner.root_path == expected
+        assert scanner.root_path.is_absolute()
+        assert "~" not in str(scanner.root_path)
+
     def test_init_creates_stats(self, tmp_path: Path) -> None:
         """Scanner initializes stats dictionary."""
         scanner = AsyncDirectoryScanner(str(tmp_path), max_depth=1)
