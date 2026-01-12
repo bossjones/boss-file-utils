@@ -204,3 +204,4 @@ mise.local.toml
 .lychee-report.md
 .lycheecache
 .claude/research-cache
+*.db
