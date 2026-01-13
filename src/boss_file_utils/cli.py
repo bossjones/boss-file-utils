@@ -35,6 +35,46 @@ from boss_file_utils.telemetry import (
     setup_telemetry,
 )
 
+# Media file extensions allow list (case-insensitive)
+MEDIA_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        # Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".heic",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".svg",
+        ".ico",
+        # Videos
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".mkv",
+        ".webm",
+        ".flv",
+        ".wmv",
+        ".m4v",
+        ".mpg",
+        ".mpeg",
+        ".3gp",
+        # Audio
+        ".mp3",
+        ".m4a",
+        ".wav",
+        ".flac",
+        ".aac",
+        ".ogg",
+        ".wma",
+        ".opus",
+        ".alac",
+    }
+)
+
 
 @dataclass
 class FileMetadata:
@@ -68,7 +108,7 @@ class AsyncDirectoryScanner:
         max_workers: int = 50,
         batch_size: int = 500,
     ):
-        self.root_path = Path(root_path).resolve()
+        self.root_path = Path(root_path).expanduser().resolve()
         self.max_depth = max_depth
         self.db_path = db_path
         self.max_workers = max_workers
@@ -86,11 +126,24 @@ class AsyncDirectoryScanner:
     def _get_entry_metadata(self, entry: os.DirEntry[str], depth: int) -> FileMetadata | None:
         """
         Extract metadata from a directory entry.
-        Returns None if the entry cannot be accessed.
+        Returns None if the entry cannot be accessed or if it's not a media file.
         """
         try:
             stat_info = entry.stat(follow_symlinks=False)
             path = Path(entry.path)
+
+            # Skip .DS_Store files
+            if entry.name == ".DS_Store":
+                return None
+
+            is_dir = entry.is_dir(follow_symlinks=False)
+
+            # Allow all directories (needed for traversal)
+            # For files, only allow media extensions
+            if not is_dir:
+                extension = path.suffix.lower()
+                if extension not in MEDIA_EXTENSIONS:
+                    return None
 
             return FileMetadata(
                 name=entry.name,
@@ -104,7 +157,7 @@ class AsyncDirectoryScanner:
                 created_datetime=datetime.fromtimestamp(
                     getattr(stat_info, "st_birthtime", stat_info.st_ctime)
                 ).isoformat(),
-                is_directory=entry.is_dir(follow_symlinks=False),
+                is_directory=is_dir,
                 is_symlink=entry.is_symlink(),
                 depth=depth,
             )

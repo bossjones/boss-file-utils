@@ -183,6 +183,17 @@ class TestAsyncDirectoryScannerInit:
 
         assert scanner.root_path.is_absolute()
 
+    def test_init_expands_tilde_path(self) -> None:
+        """Scanner expands tilde paths to user home directory."""
+        tilde_path = "~/test_dir"
+        scanner = AsyncDirectoryScanner(tilde_path, max_depth=1)
+
+        # Should expand to home directory
+        expected = Path.home() / "test_dir"
+        assert scanner.root_path == expected
+        assert scanner.root_path.is_absolute()
+        assert "~" not in str(scanner.root_path)
+
     def test_init_creates_stats(self, tmp_path: Path) -> None:
         """Scanner initializes stats dictionary."""
         scanner = AsyncDirectoryScanner(str(tmp_path), max_depth=1)
@@ -201,7 +212,7 @@ class TestAsyncDirectoryScannerMetadata:
     @pytest.fixture
     def test_file(self, tmp_path: Path) -> Path:
         """Create a test file."""
-        test_file = tmp_path / "test.txt"
+        test_file = tmp_path / "test.jpg"
         test_file.write_text("Hello, World!")
         return test_file
 
@@ -225,8 +236,8 @@ class TestAsyncDirectoryScannerMetadata:
                 pytest.fail("Test file not found in scandir")
 
         assert metadata is not None
-        assert metadata.name == "test.txt"
-        assert metadata.extension == ".txt"
+        assert metadata.name == "test.jpg"
+        assert metadata.extension == ".jpg"
         assert metadata.is_directory is False
         assert metadata.is_symlink is False
         assert metadata.depth == 1
@@ -433,11 +444,11 @@ class TestAsyncDirectoryScannerRun:
     async def test_run_with_files(self, tmp_path: Path) -> None:
         """run() scans and stores file metadata."""
         # Create test structure
-        (tmp_path / "file1.txt").write_text("content1")
-        (tmp_path / "file2.py").write_text("print('hello')")
+        (tmp_path / "file1.jpg").write_text("content1")
+        (tmp_path / "file2.mp4").write_text("print('hello')")
         subdir = tmp_path / "subdir"
         subdir.mkdir()
-        (subdir / "nested.txt").write_text("nested")
+        (subdir / "nested.mp3").write_text("nested")
 
         db_path = tmp_path / "scan.db"
         scanner = AsyncDirectoryScanner(str(tmp_path), max_depth=2, db_path=str(db_path))
