@@ -7,7 +7,7 @@ Repository = "https://github.com/bossjones/boss-file-utils"
 
 [project]
 name = "boss-file-utils"
-description = "lab to play with new 3rd party logging modules in python"
+description = "Async directory scanner that indexes media file metadata into SQLite with OpenTelemetry observability"
 authors = [
     { name="Malcolm Jones", email="bossjones@theblacktonystark.com" },
 ]
