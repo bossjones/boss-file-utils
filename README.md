@@ -203,6 +203,66 @@ make test
 make lint
 ```
 
+## tweet-cropper
+
+Crop iOS tweet screenshots to remove chrome (status bar, "Post" header, bottom nav bar, and engagement metrics row), leaving just the tweet content from the author through the timestamp/views line. Uses Tesseract OCR to locate crop anchors automatically.
+
+### Requirements
+
+Tesseract must be installed system-wide:
+
+```bash
+# macOS
+brew install tesseract
+
+# Ubuntu
+sudo apt-get install tesseract-ocr
+```
+
+### Usage Examples
+
+```bash
+# Crop a single screenshot (output goes to ./cropped/)
+tweet-cropper screenshot.png
+
+# Crop multiple files at once
+tweet-cropper shot1.png shot2.png shot3.png
+
+# Write output to a custom directory
+tweet-cropper screenshot.png --output-dir ~/Desktop/cropped
+tweet-cropper screenshot.png -o ~/Desktop/cropped
+
+# Pad onto a 4:5 Instagram portrait canvas (1080x1350)
+tweet-cropper screenshot.png --pad-to-instagram
+
+# Pad onto a 1:1 Instagram square canvas (1080x1080)
+tweet-cropper screenshot.png --pad-to-instagram --square
+
+# Save a debug overlay showing OCR boxes and chosen crop lines
+tweet-cropper screenshot.png --debug
+
+# All options combined
+tweet-cropper shot1.png shot2.png -o ~/Desktop/ig --pad-to-instagram --square --debug
+```
+
+### Output Files
+
+| Scenario | Output filename |
+|----------|----------------|
+| Default crop | `{stem}_cropped.jpg` |
+| With `--pad-to-instagram` | `{stem}_ig.jpg` |
+| With `--debug` | `{stem}_debug.png` (alongside the cropped output) |
+
+### CLI Arguments Reference
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `inputs` | positional (1+) | required | Screenshot file(s) to process |
+| `-o, --output-dir` | string | `./cropped` | Directory to write cropped images into |
+| `--pad-to-instagram` | flag | false | Pad result onto a 4:5 portrait canvas (1080x1350) for Instagram |
+| `--square` | flag | false | With `--pad-to-instagram`, use 1:1 square (1080x1080) instead of 4:5 |
+| `--debug` | flag | false | Save a debug overlay image showing OCR boxes and chosen crop lines |
+
 ## License
 
 MIT License
