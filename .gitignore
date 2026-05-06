@@ -225,3 +225,4 @@ hack/doctor/bin/chezmoi
 specs/proxmox_homelab
 scripts/proxmox_introspect.py
 .claude/worktrees/
+logs/
