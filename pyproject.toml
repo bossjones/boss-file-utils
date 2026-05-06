@@ -91,6 +91,7 @@ dev = [
 [project.scripts]
 # Add script entry points here:
 boss-file-utils = "boss_file_utils:main"
+tweet-cropper = "boss_file_utils.tweet_cropper:main"
 
 
 # ---- Build system ----
