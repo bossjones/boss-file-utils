@@ -50,8 +50,10 @@ dependencies = [
     "opentelemetry-instrumentation-threading>=0.60b1",
     "opentelemetry-sdk>=1.29.0",
     "orjson>=3.11.5",
+    "pillow>=10.0",
     "pydantic-extra-types>=2.10.6",
     "pydantic-settings>=2.12.0",
+    "pytesseract>=0.3.10",
     "sqlite-utils>=3.39",
     "structlog>=25.5.0",
 ]
@@ -85,6 +87,7 @@ dev = [
 [project.scripts]
 # Add script entry points here:
 boss-file-utils = "boss_file_utils:main"
+tweet-cropper = "boss_file_utils.tweet_cropper:main"
 
 
 # ---- Build system ----
