@@ -144,6 +144,7 @@ class TestCropTweet:
         """If anchor detection produces bottom_y <= top_y (e.g. degenerate input),
         crop_tweet raises ValueError rather than silently producing an empty crop."""
         image = Image.new("RGB", (400, 600), "white")
+        mocker.patch("boss_file_utils.tweet_cropper.ocr_words", return_value=[])
         mocker.patch("boss_file_utils.tweet_cropper.ocr_lines", return_value=[])
         mocker.patch("boss_file_utils.tweet_cropper.find_top_y", return_value=500)
         mocker.patch("boss_file_utils.tweet_cropper.find_bottom_y", return_value=400)
